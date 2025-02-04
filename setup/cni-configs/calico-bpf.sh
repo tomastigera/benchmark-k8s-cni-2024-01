@@ -1,10 +1,14 @@
 
 # Source : https://docs.tigera.io/calico/latest/operations/ebpf/install
 
-echo "Setup calico operator"
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/master/manifests/tigera-operator.yaml
+echo "Creating tigera-operator namespace"
+
+kubectl create namespace tigera-operator
 
 echo "Apply configmap"
+
+clean_input=$(kubectl cluster-info | grep 'control plane' | sed -r 's/\x1B\[[0-9;]*[mK]//g')
+
 # Apply configmap to tell Operator what the real IP/port of the control plane is
 kubectl apply -f - <<EOF
 kind: ConfigMap
@@ -13,9 +17,12 @@ metadata:
   name: kubernetes-services-endpoint
   namespace: tigera-operator
 data:
-  KUBERNETES_SERVICE_HOST: \"$(kubectl cluster-info | grep 'control plane' | awk -F':|//' '{print $3}')\"
-  KUBERNETES_SERVICE_PORT: \"$(kubectl cluster-info | grep 'control plane' | awk -F':|//' '{print $4}')\"
+  KUBERNETES_SERVICE_HOST: "$(echo $clean_input | awk -F':|//' '{print $3}')"
+  KUBERNETES_SERVICE_PORT: "$(echo $clean_input | awk -F':|//' '{print $4}')"
 EOF
+
+echo "Setup calico operator"
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/master/manifests/tigera-operator.yaml
 
 # IPPool CIDR changed for RKE2 default 10.42.0.0/16
 echo "Setup calico custom resource"
