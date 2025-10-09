@@ -46,7 +46,7 @@ spec:
       nodeSelector: all()
     nodeAddressAutodetectionV4:
           cidrs:
-            - '192.168.2.0/24'
+            - '10.70.0.0/16'
 ---
 # This section configures the Calico API server.
 # For more information, see: https://docs.tigera.io/calico/latest/reference/installation/api#operator.tigera.io/v1.APIServer

@@ -2,7 +2,7 @@
 # Source : https://docs.tigera.io/calico/latest/getting-started/kubernetes/quickstart#install-calico
 
 echo "Setup calico operator"
-kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.2/manifests/tigera-operator.yaml
 
 # IPPool CIDR changed for RKE2 default 10.42.0.0/16
 echo "Setup calico custom resource"
@@ -25,7 +25,7 @@ spec:
       nodeSelector: all()
     nodeAddressAutodetectionV4:
           cidrs:
-            - '192.168.2.0/24'
+            - '10.70.0.0/16'
 ---
 # This section configures the Calico API server.
 # For more information, see: https://docs.tigera.io/calico/latest/reference/installation/api#operator.tigera.io/v1.APIServer

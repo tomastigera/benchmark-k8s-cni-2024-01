@@ -5,6 +5,8 @@ set -x
 CURDIR=$(dirname "$0")
 [ "$CURDIR" = "." ] && CURDIR=$(pwd)
 
+USE_VLAN="${USE_VLAN:=n}"
+
 export KUBECONFIG="$CURDIR/setup/59-kubeconfig.yaml"
 export SERVER_MTU=${SERVER_MTU:-"1500"}
 export SSHUSER=root
@@ -12,6 +14,7 @@ export PROJECT="730997aa-dfc5-429f-a05d-0effa65253c5"
 export TYPE="m3.small.x86"
 export CLUSTER_NAME=${CLUSTER_NAME:-"test"}
 export VLANID=4e3c07b7-d831-4bb3-ac55-5af4350a7682
+export USE_VLAN
 
 function init {
     echo "Setup instances on Equinix Metal"
@@ -28,10 +31,12 @@ function init {
 
     metal device list -o json | jq -r .[].state
 
-    # Put bond0 on each server onto the same VLAN
-    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a1 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
-    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a2 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
-    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a3 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
+    if [ "$USE_VLAN" = "y" ]; then
+	    # Put bond0 on each server onto the same VLAN
+	    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a1 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
+	    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a2 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
+	    metal ports vlan --port-id "$(metal device get --filter hostname="${CLUSTER_NAME}"-a3 --output json | jq -r .[0].network_ports[0].bond.id)" --assign ${VLANID}
+    fi
 
     sleep 10
 
@@ -55,16 +60,25 @@ function rke2-up {
     A1IP_EXT=$(getip a1 0)
     A2IP_EXT=$(getip a2 0)
     A3IP_EXT=$(getip a3 0)
+
     A1IP=$(getip a1 2)
     A2IP=$(getip a2 2)
     A3IP=$(getip a3 2)
 
+    if [ "$USE_VLAN" = "y" ]; then
+	    A1IP="192.168.2.1"
+	    A2IP="192.168.2.2"
+	    A3IP="192.168.2.3"
+    fi
+
+    CONTROL_IP=$A1IP
+
     echo "Setup RKE2 controlplane on a1 ($A1IP_EXT)"
-    "$CURDIR"/setup/50-setup-rke2.sh cp ${SSHUSER}@"$A1IP_EXT" "192.168.2.1" "192.168.2.1" $A1IP_EXT
+    "$CURDIR"/setup/50-setup-rke2.sh cp ${SSHUSER}@"$A1IP_EXT" $A1IP $A1IP $A1IP_EXT
 
     echo "Setup RKE2 worker on a2 ($A2IP_EXT) and a3 ($A3IP_EXT)"
-    "$CURDIR"/setup/50-setup-rke2.sh worker ${SSHUSER}@"$A2IP_EXT" "192.168.2.1" "192.168.2.2" $A2IP_EXT
-    "$CURDIR"/setup/50-setup-rke2.sh worker ${SSHUSER}@"$A3IP_EXT" "192.168.2.1" "192.168.2.3" $A3IP_EXT
+    "$CURDIR"/setup/50-setup-rke2.sh worker ${SSHUSER}@"$A2IP_EXT" $CONTROL_IP $A2IP $A2IP_EXT
+    "$CURDIR"/setup/50-setup-rke2.sh worker ${SSHUSER}@"$A3IP_EXT" $CONTROL_IP $A3IP $A3IP_EXT
     sed -i "s/192.168.2.1/$A1IP/g" "$CURDIR"/setup/59-kubeconfig.yaml
 
     echo "RKE2 ready"
